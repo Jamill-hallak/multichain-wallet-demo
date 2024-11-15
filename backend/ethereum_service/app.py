@@ -1,5 +1,6 @@
 from flask import Flask, jsonify
 from wallet import EthereumWallet
+from services.wallet_service import EthereumWallet
 
 app = Flask(__name__)
 
