@@ -1,58 +1,47 @@
-import os
-from dotenv import load_dotenv
 from web3 import Web3
-from services.error_service import WalletGenerationError
-
-# Load environment variables
-load_dotenv()
+from services.error_service import WalletGenerationError, WalletRecoveryError
+from services.security_service import SecurityService
 
 class WalletService:
     """
-    Handles wallet generation and related operations for Ethereum.
+    Handles Ethereum wallet generation and recovery with encrypted private keys.
     """
 
-    def __init__(self, rpc_url=None):
-        # Use the provided RPC URL or fetch it from environment variables
-        if rpc_url:
-            self.rpc_url = rpc_url
-        else:
-            self.rpc_url = os.getenv("SEPOLIA_RPC_URL")
-            if not self.rpc_url:
-                raise EnvironmentError("SEPOLIA_RPC_URL not set in environment variables.")
-        
-        # Connect to Ethereum node
-        self.web3 = Web3(Web3.HTTPProvider(self.rpc_url))
-        if not self.web3.is_connected():
-            raise ConnectionError("Failed to connect to the Sepolia Ethereum testnet.")
+    def __init__(self, web3: Web3):
+        self.web3 = web3
+        self.security_service = SecurityService()
 
     def generate_wallet(self):
         """
         Generate a new Ethereum wallet.
         Returns:
-            dict: A dictionary containing the private key and wallet address.
+            dict: Contains wallet address and encrypted private key.
         Raises:
             WalletGenerationError: If wallet generation fails.
         """
         try:
             account = self.web3.eth.account.create()
-            return {"private_key": account.key.hex(), "address": account.address}
+            encrypted_key = self.security_service.encrypt_data(account.key.hex())
+            return {"address": account.address, "encrypted_private_key": encrypted_key}
         except Exception as e:
-            raise WalletGenerationError("Failed to generate Ethereum wallet.") from e
+            raise WalletGenerationError("Failed to generate wallet.") from e
 
-    def get_balance(self, address):
+    def recover_wallet(self, mnemonic, otp):
         """
-        Get the balance of an Ethereum address.
+        Recover an Ethereum wallet using a mnemonic and OTP.
         Args:
-            address (str): Ethereum address.
+            mnemonic (str): Wallet mnemonic.
+            otp (str): OTP for validation.
         Returns:
-            float: Balance in Ether.
+            dict: Wallet address and encrypted private key.
         Raises:
-            ValueError: If the address is invalid.
+            WalletRecoveryError: If recovery fails or OTP is invalid.
         """
+        if not self.security_service.validate_otp(otp):
+            raise WalletRecoveryError("Invalid OTP for wallet recovery.")
         try:
-            if not self.web3.is_address(address):
-                raise ValueError(f"Invalid Ethereum address: {address}")
-            balance_wei = self.web3.eth.get_balance(address)
-            return self.web3.fromWei(balance_wei, "ether")
+            account = self.web3.eth.account.from_mnemonic(mnemonic)
+            encrypted_key = self.security_service.encrypt_data(account.key.hex())
+            return {"address": account.address, "encrypted_private_key": encrypted_key}
         except Exception as e:
-            raise WalletGenerationError("Failed to fetch balance.") from e
+            raise WalletRecoveryError("Failed to recover wallet.") from e
