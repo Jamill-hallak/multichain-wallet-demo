@@ -1,26 +1,26 @@
-from flask import Flask, jsonify
-from wallet import EthereumWallet
-from services.wallet_service import EthereumWallet
+from flask import Flask
+from routes.wallet_routes import wallet_routes
+from routes.balance_routes import balance_routes
+from routes.fa_routes import twofa_routes
+from middleware.error_handler import handle_custom_error, handle_generic_error
+from services.error_service import CustomError
 
-app = Flask(__name__)
+def create_app():
+    """Create and configure the Flask application."""
+    app = Flask(__name__)
 
-@app.route("/generate-wallet", methods=["GET"])
-def generate_wallet():
-    """
-    API endpoint to generate an Ethereum wallet.
-    """
-    try:
-        eth_wallet = EthereumWallet()
-        wallet = eth_wallet.generate_wallet()
-        return jsonify({
-            "status": "success",
-            "data": wallet
-        }), 200
-    except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+    # Register blueprints for routes
+    app.register_blueprint(wallet_routes, url_prefix="/wallet")
+    app.register_blueprint(balance_routes, url_prefix="/balance")
+    app.register_blueprint(twofa_routes, url_prefix="/2fa")
 
+    # Register error handlers
+    app.register_error_handler(CustomError, handle_custom_error)
+    app.register_error_handler(Exception, handle_generic_error)
+
+    return app
+
+# Entry point for running the application directly
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app = create_app()
+    app.run(host="127.0.0.1", port=5000, debug=True)

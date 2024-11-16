@@ -1,34 +1,38 @@
 from web3 import Web3
-from services.error_service import BalanceQueryError
+import os
+from dotenv import load_dotenv
 
+load_dotenv()
 
 class BalanceService:
-    """
-    Handles balance-related operations for Ethereum wallets.
-    """
-
-    def __init__(self, rpc_url):
-        try:
-            self.web3 = Web3(Web3.HTTPProvider(rpc_url))
-            if not self.web3.isConnected():
-                raise ConnectionError("Failed to connect to Ethereum network.")
-        except Exception as e:
-            raise ConnectionError("Ethereum RPC connection error.") from e
+    def __init__(self):
+        rpc_url = os.getenv("SEPOLIA_RPC_URL")
+        if not rpc_url:
+            raise EnvironmentError("SEPOLIA_RPC_URL not set in environment variables.")
+        
+        self.web3 = Web3(Web3.HTTPProvider(rpc_url))
+        if not self.web3.is_connected():
+            raise ConnectionError("Failed to connect to the Ethereum testnet.")
+    
 
     def get_balance(self, address):
         """
-        Fetch the Ether balance of a given Ethereum address.
+        Fetch the balance of an Ethereum address.
         Args:
             address (str): Ethereum wallet address.
         Returns:
             float: Balance in Ether.
         Raises:
-            BalanceQueryError: If balance fetching fails.
+            ValueError: If the Ethereum address is invalid.
+            Exception: If fetching the balance fails.
         """
-        if not self.web3.isAddress(address):
-            raise BalanceQueryError(f"Invalid Ethereum address: {address}")
         try:
+            if not self.web3.is_address(address):
+                raise ValueError(f"Invalid Ethereum address: {address}")
             balance_wei = self.web3.eth.get_balance(address)
-            return self.web3.fromWei(balance_wei, "ether")
+            balance_eth = self.web3.from_wei(balance_wei, "ether")
+            return balance_eth
+        except ValueError as e:
+            raise e
         except Exception as e:
-            raise BalanceQueryError(f"Failed to fetch balance for address {address}.") from e
+            raise Exception(f"Failed to fetch balance for address {address}. Error: {str(e)}")
