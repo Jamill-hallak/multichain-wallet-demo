@@ -1,61 +1,97 @@
+import os
+from dotenv import load_dotenv
+import pyotp
 import requests
 
+# Load environment variables
+load_dotenv()
+
 BASE_URL = "http://127.0.0.1:5000"
-generated_otp = None  # Global variable to store the generated OTP for verification
-generated_address = None  # Global variable to store the generated Ethereum address
+jwt_token = None
+generated_address = None
+encrypted_private_key = None
+
+# Load the OTP secret from the .env file
+otp_secret = os.getenv("OTP_SECRET")
+if not otp_secret:
+    raise ValueError("OTP_SECRET not found in environment variables.")
+
+
+def login():
+    """
+    Log in to the application and obtain a JWT token.
+    """
+    global jwt_token
+    response = requests.post(f"{BASE_URL}/auth/login", json={"user_id": "user123", "password": "password123"})
+    response_data = response.json()
+
+    if response_data.get("status") == "success":
+        jwt_token = response_data["token"]
+        print("Login successful:", response_data)
+    else:
+        print("Failed to log in:", response_data)
 
 
 def test_generate_wallet():
-    global generated_address  # Access the global variable to store the generated address
-    response = requests.get(f"{BASE_URL}/wallet/generate-wallet")
+    """
+    Generate a new Ethereum wallet.
+    """
+    global generated_address, encrypted_private_key
+    if not jwt_token:
+        print("No JWT token. Run login() first.")
+        return
+
+    headers = {"Authorization": f"Bearer {jwt_token}"}
+    response = requests.get(f"{BASE_URL}/wallet/generate", headers=headers)
     response_data = response.json()
-    
-    # Extract the Ethereum address from the response
+
     if response_data.get("status") == "success":
         generated_address = response_data["data"]["address"]
-        print("Generate Wallet Response:", response_data)
+        encrypted_private_key = response_data["data"]["encrypted_private_key"]
+        print("Wallet generated successfully:", response_data)
     else:
         print("Failed to generate wallet:", response_data)
 
 
-def test_get_balance():
-    global generated_address  # Access the global generated address
-    if not generated_address:
-        print("No address generated. Run test_generate_wallet first.")
+def test_send_eth():
+    """
+    Send ETH from the generated wallet to a recipient.
+    Passes if the transaction fails due to insufficient balance.
+    """
+    global generated_address, encrypted_private_key
+    if not jwt_token:
+        print("No JWT token. Run login() first.")
         return
 
-    # Fetch balance for the generated Ethereum address
-    response = requests.get(f"{BASE_URL}/balance/get-balance/{generated_address}")
-    print("Get Balance Response:", response.json())
+    if not generated_address or not encrypted_private_key:
+        print("No wallet generated. Run test_generate_wallet first.")
+        return
 
+    # Generate a dynamic OTP using the loaded OTP secret
+    totp = pyotp.TOTP(otp_secret)
+    otp = totp.now()
 
-def test_generate_otp():
-    global generated_otp  # Access the global variable to store OTP
-    response = requests.post(f"{BASE_URL}/2fa/generate-otp", json={"user_id": "user123"})
+    headers = {"Authorization": f"Bearer {jwt_token}"}
+    data = {
+        "from_address": generated_address,
+        "to_address": "0x9728875Fa171c008B183dD1e8aE987acb2A1919A",  # Replace with a valid recipient address
+        "amount": 10.0,  # Set an amount likely to exceed the wallet's balance
+        "encrypted_private_key": encrypted_private_key,
+        "otp": otp
+    }
+    response = requests.post(f"{BASE_URL}/transaction/send-eth", headers=headers, json=data)
     response_data = response.json()
-    
-    if response_data.get("status") == "success":
-        generated_otp = response_data.get("otp")  # Store the OTP for later use
-        print("Generate OTP Response:", response_data)
+
+    if response_data.get("status") == "error" and "Not enough balance" in response_data.get("message", ""):
+        print("Test passed: Transaction failed due to insufficient balance.")
+    elif response_data.get("status") == "success":
+        print("ETH sent successfully:", response_data)
     else:
-        print("Failed to generate OTP:", response_data)
-
-
-def test_verify_otp():
-    global generated_otp  # Access the global OTP generated earlier
-    if not generated_otp:
-        print("No OTP generated. Run test_generate_otp first.")
-        return
-
-    response = requests.post(f"{BASE_URL}/2fa/verify-otp", json={"user_id": "user123", "otp": generated_otp})
-    print("Verify OTP Response:", response.json())
+        print("Test failed: Unexpected response:", response_data)
 
 
 if __name__ == "__main__":
     print("Testing API Endpoints:")
-    
-    # Step-by-step execution
+    login()  # Log in to get JWT token
     test_generate_wallet()  # Generate wallet and store the address
-    test_get_balance()      # Fetch balance for the generated address
-    test_generate_otp()     # Generate OTP for 2FA
-    test_verify_otp()       # Verify the generated OTP
+    test_send_eth()  # Attempt to send ETH and handle insufficient balance gracefully
