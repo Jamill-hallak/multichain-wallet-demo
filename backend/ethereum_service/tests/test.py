@@ -113,10 +113,43 @@ def test_send_eth():
     else:
         print("Test failed: Unexpected response:", response_data)
 
+def test_gas_estimation():
+    """
+    Estimate gas for a transaction.
+    """
+    global generated_address
+    if not jwt_token:
+        print("No JWT token. Run login() first.")
+        return
 
+    if not generated_address:
+        print("No wallet generated. Run test_generate_wallet first.")
+        return
+
+    headers = {"Authorization": f"Bearer {jwt_token}"}
+    data = {
+        "from_address": generated_address,
+        "to_address": "0x9728875Fa171c008B183dD1e8aE987acb2A1919A",  # Replace with a valid recipient address
+        "amount": 0.01
+    }
+    response = requests.post(f"{BASE_URL}/gas-estimation/estimate-gas", headers=headers, json=data)
+    response_data = response.json()
+    
+    if response_data.get("status") == "success":
+        gas_estimate = response_data["data"]["gas_estimate"]
+        gas_price = response_data["data"]["gas_price"]
+        print(f"Gas estimate: {gas_estimate}, Gas price: {gas_price}")
+    elif " Insufficient funds for gas estimation" in response_data.get("message", ""):
+        print("Test passed: Gas estimation failed due to insufficient funds")
+    else:
+        print("Failed to estimate gas:", response_data)
+        
+        
+        
 if __name__ == "__main__":
     print("Testing API Endpoints:")
     login()  # Log in to get JWT token
     test_generate_wallet()  # Generate wallet and store the address
     test_get_balance()  # Fetch and display the wallet balance
+    test_gas_estimation() #test estimation gas 
     test_send_eth()  # Attempt to send ETH and handle insufficient balance gracefully
