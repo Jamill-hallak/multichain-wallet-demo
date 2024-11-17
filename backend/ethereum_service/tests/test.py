@@ -53,6 +53,30 @@ def test_generate_wallet():
         print("Failed to generate wallet:", response_data)
 
 
+def test_get_balance():
+    """
+    Fetch and display the ETH balance of the generated wallet.
+    """
+    global generated_address
+    if not jwt_token:
+        print("No JWT token. Run login() first.")
+        return
+
+    if not generated_address:
+        print("No wallet generated. Run test_generate_wallet first.")
+        return
+
+    headers = {"Authorization": f"Bearer {jwt_token}"}
+    response = requests.get(f"{BASE_URL}/balance/eth/{generated_address}", headers=headers)
+    response_data = response.json()
+
+    if response_data.get("status") == "success":
+        balance = response_data.get("balance", 0)
+        print(f"Wallet balance: {balance} ETH")
+    else:
+        print("Failed to fetch wallet balance:", response_data)
+
+
 def test_send_eth():
     """
     Send ETH from the generated wallet to a recipient.
@@ -94,4 +118,5 @@ if __name__ == "__main__":
     print("Testing API Endpoints:")
     login()  # Log in to get JWT token
     test_generate_wallet()  # Generate wallet and store the address
+    test_get_balance()  # Fetch and display the wallet balance
     test_send_eth()  # Attempt to send ETH and handle insufficient balance gracefully
