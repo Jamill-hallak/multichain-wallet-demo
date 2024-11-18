@@ -2,6 +2,9 @@ import os
 from dotenv import load_dotenv
 import pyotp
 import requests
+from eth_account.messages import encode_defunct
+from web3.auto import w3
+import hashlib
 
 # Load environment variables
 load_dotenv()
@@ -113,6 +116,7 @@ def test_send_eth():
     else:
         print("Test failed: Unexpected response:", response_data)
 
+
 def test_gas_estimation():
     """
     Estimate gas for a transaction.
@@ -145,11 +149,56 @@ def test_gas_estimation():
         print("Failed to estimate gas:", response_data)
         
         
-        
+
+def test_sign_message():
+    """
+    Test signing a message and validate the response using Ethereum's message hash logic.
+    """
+    if not jwt_token:
+        print("No JWT token. Run login() first.")
+        return
+
+    # Test input
+    message = "Hello, this is a test message!"
+    private_key = "0x4c0883a69102937d6231471b5dbb6204fe512961708279f02d5bb9040e1ef2b1"
+
+    # Headers and request data
+    headers = {"Authorization": f"Bearer {jwt_token}"}
+    data = {"message": message, "private_key": private_key}
+
+    # Send request
+    response = requests.post(f"{BASE_URL}/signing/sign-message", headers=headers, json=data)
+    response_data = response.json()
+
+    if response_data.get("status") == "success":
+        signed_message = response_data["data"]
+
+        # Extract the signed message components
+        signature = signed_message.get("signature")
+        message_hash = signed_message.get("message_hash")
+
+        # Validate the signature and hash
+        if not signature or not message_hash:
+            print("Test failed: Signature or message hash is missing in the response.")
+            return
+
+        # Recompute the hash using Ethereum's encoding
+        encoded_message = encode_defunct(text=message)
+        computed_hash = w3.keccak(encoded_message.body).hex()
+
+        # Check if the hash matches
+        if computed_hash != message_hash:
+            print(f"Test failed: Computed hash ({computed_hash}) does not match the returned hash ({message_hash}).")
+        else:
+            print(f"Test passed: Signed message is valid. Signed message: {signed_message}")
+    else:
+        print("Test failed: API response indicates an error.", response_data)
+
 if __name__ == "__main__":
     print("Testing API Endpoints:")
     login()  # Log in to get JWT token
     test_generate_wallet()  # Generate wallet and store the address
     test_get_balance()  # Fetch and display the wallet balance
+    test_sign_message()
     test_gas_estimation() #test estimation gas 
     test_send_eth()  # Attempt to send ETH and handle insufficient balance gracefully
