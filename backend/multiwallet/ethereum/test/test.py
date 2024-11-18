@@ -4,7 +4,7 @@ import pyotp
 import requests
 from eth_account.messages import encode_defunct
 from web3.auto import w3
-import hashlib
+from web3 import Web3
 
 # Load environment variables
 load_dotenv()
@@ -69,15 +69,21 @@ def test_get_balance():
         print("No wallet generated. Run test_generate_wallet first.")
         return
 
+    if not Web3.is_address(generated_address):
+        print("Invalid Ethereum address. Ensure wallet generation is working correctly.")
+        return
+
     headers = {"Authorization": f"Bearer {jwt_token}"}
     response = requests.get(f"{BASE_URL}/ethereum/balance/eth/{generated_address}", headers=headers)
     response_data = response.json()
 
-    if response_data.get("status") == "success":
+    if response.status_code == 200 and response_data.get("status") == "success":
         balance = response_data.get("balance", 0)
         print(f"Wallet balance: {balance} ETH")
     else:
-        print("Failed to fetch wallet balance:", response_data)
+        print("Failed to fetch wallet balance:")
+        print(f"Status Code: {response.status_code}")
+        print(f"Response: {response_data}")
 
 
 def test_send_eth():
