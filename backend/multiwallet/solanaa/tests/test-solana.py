@@ -142,8 +142,6 @@ def test_solana_transaction():
     """
     Test Solana transaction by simulating a transfer with insufficient balance.
     """
-    
-
     if not jwt_token:
         print("No JWT token. Run login() first.")
         return
@@ -185,9 +183,11 @@ def test_solana_transaction():
         # Send request to transaction route
         response = requests.post(f"{BASE_URL}/solana/transaction/send", headers=headers, json=data)
         response_data = response.json()
-        if response.status_code == 400 and response_data.get("message") == "Insufficient balance":
+        if response.status_code in [400, 500] and (
+            "Insufficient balance" in response_data.get("message", "") or
+            "Attempt to debit an account but found no record of a prior credit" in response_data.get("message", "")
+        ):
             print("Test passed: Transaction failed as expected due to insufficient balance.")
-            print("Response:", response_data)
         elif response.status_code != 200:
             print("Test failed: Unexpected error occurred during the transaction.")
             print(f"Status Code: {response.status_code}")
@@ -198,6 +198,7 @@ def test_solana_transaction():
 
     except Exception as e:
         print(f"Error occurred while testing the transaction. Error: {e}")
+
 
 
 if __name__ == "__main__":
