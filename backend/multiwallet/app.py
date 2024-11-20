@@ -3,6 +3,7 @@ import sys
 from flask import Flask
 from dotenv import load_dotenv
 from web3 import Web3
+from solana.rpc.api import Client
 
 # Add the multiwallet directory to the Python module search path
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
@@ -16,11 +17,10 @@ from ethereum.routes.gas_estimation_routes import gas_estimation_routes as ether
 from ethereum.routes.signing_routes import signing_routes as ethereum_signing_routes
 
 
-from solana.routes.wallet_routes import  solana_wallet_routes
-# from solana.routes.balance_routes import balance_routes as solana_balance_routes
-# from solana.routes.transaction_routes import transaction_routes as solana_transaction_routes
-# from solana.routes.gas_routes import gas_routes as solana_gas_routes
-# from solana.routes.signing_routes import signing_routes as solana_signing_routes
+from solanaa.routes.wallet_routes import  solana_wallet_routes
+from solanaa.routes.balance_routes import balance_routes as solana_balance_routes
+from solanaa.routes.transaction_routes import transaction_routes as solana_transaction_routes
+from solanaa.routes.signing_routes import signing_routes as solana_signing_routes
 
 # Import middleware and services
 from ethereum.middleware.error_handler import handle_custom_error, handle_generic_error
@@ -40,7 +40,24 @@ if not web3.is_connected():
 else:
     print("Connected to Ethereum node.")
 
+ # Connect to Solana node
+solana_rpc_url = os.getenv("SOLANA_RPC_URL")
+solana_client = Client(solana_rpc_url)
 
+try:
+    # Use `get_version` to check Solana node connectivity
+    solana_version_response = solana_client.get_version()
+
+    # Extract the Solana version
+    solana_version = solana_version_response.value  # RpcVersionInfo object
+    print(f"Connected to Solana node. Version: {solana_version}")
+except AttributeError as e:
+    print("Failed to parse Solana version response. Ensure the library version is correct.")
+    print(f"Error: {e}")
+except Exception as e:
+    print(f"Failed to connect to Solana node. Error: {e}")
+    
+    
 def create_app():
     """Create and configure the Flask application."""
     app = Flask(__name__)
@@ -57,15 +74,17 @@ def create_app():
     
     # #ٌRegister Solana blueprints 
     app.register_blueprint(solana_wallet_routes, url_prefix="/solana/")
-    # app.register_blueprint(solana_balance_routes, url_prefix="/solana/balance")
-    # app.register_blueprint(solana_gas_routes, url_prefix="/solana/gas")
-    # app.register_blueprint(solana_signing_routes, url_prefix="/solana/signing")
-    # app.register_blueprint(solana_transaction_routes, url_prefix="/solana/transaction")
+    app.register_blueprint(solana_balance_routes, url_prefix="/solana/balance")
+    app.register_blueprint(solana_signing_routes, url_prefix="/solana/signing")
+    app.register_blueprint(solana_transaction_routes, url_prefix="/solana/transaction")
 
 
     # Register error handlers
     app.register_error_handler(CustomError, handle_custom_error)
     app.register_error_handler(Exception, handle_generic_error)
+    # Print all registered routes
+    print("Registered Routes:")
+    print(app.url_map)
 
     return app
 
