@@ -1,7 +1,22 @@
+
 version: "3.8"
 services:
   ethereum_service:
-    build: ./backend/ethereum_service
+    build: ./backend/multiwallet/ethereum
     ports:
       - "5000:5000"
     container_name: ethereum_service
+    environment:
+      - FLASK_ENV=production
+      - SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/your-alchemy-key
+    depends_on:
+      - solana_service
+
+  solana_service:
+    build: ./backend/multiwallet/solana
+    ports:
+      - "5001:5000"
+    container_name: solana_service
+    environment:
+      - FLASK_ENV=production
+      - SOLANA_RPC_URL=https://solana-devnet.g.alchemy.com/v2/your-alchemy-key
